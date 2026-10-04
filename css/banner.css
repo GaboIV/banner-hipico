@@ -1,0 +1,408 @@
+/* =========================================================
+   BANNER  — lienzo fijo de 2000 × 360 px
+   ========================================================= */
+.banner {
+  --g-900: #03200f;
+  --g-800: #052c17;
+  --g-700: #074021;
+  --g-600: #0b5a2f;
+  --g-500: #12763e;
+  --ink:   #0a3a1f;
+  --gold-hi: #fff4b8;
+  --gold:    #f2c53d;
+  --gold-md: #d9a21f;
+  --gold-lo: #9c6b0c;
+  --gold-grad: linear-gradient(180deg, #fff3b0 0%, #f7d257 28%, #e2ac24 58%, #b47e10 100%);
+  --gold-grad-h: linear-gradient(90deg, #a87410 0%, #f6d158 30%, #fff1a6 50%, #f0c140 70%, #a87410 100%);
+  --cream: linear-gradient(180deg, #ffffff 0%, #f7f4e8 55%, #e6e0c8 100%);
+
+  position: relative;
+  width: 2000px;
+  height: 360px;
+  overflow: hidden;
+  font-family: "Oswald", "Arial Narrow", sans-serif;
+  color: #fff;
+  background:
+    radial-gradient(ellipse 620px 300px at 18% -10%, rgba(46, 170, 92, .55), transparent 70%),
+    radial-gradient(ellipse 700px 260px at 40% 115%, rgba(24, 130, 66, .45), transparent 70%),
+    linear-gradient(180deg, #0a4a27 0%, #063419 60%, #042512 100%);
+}
+.banner * { box-sizing: border-box; }
+.banner img { display: block; user-select: none; -webkit-user-drag: none; }
+
+/* --- Fondo: tribuna estilizada + destellos --- */
+.bg-stands {
+  position: absolute; inset: 0 1100px 0 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,.28) 0 4px, transparent 4px 74px),
+    repeating-linear-gradient(180deg, rgba(190,255,210,.07) 0 2px, transparent 2px 11px);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0,0,0,.65) 38%, transparent 70%);
+          mask-image: linear-gradient(180deg, #000 0%, rgba(0,0,0,.65) 38%, transparent 70%);
+  opacity: .9;
+}
+.bg-stands::after { /* techo de la tribuna */
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 26px;
+  background: linear-gradient(180deg, rgba(0,0,0,.55), transparent);
+}
+.bg-streaks {
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(112deg, transparent 0 46%, rgba(140,255,180,.10) 50%, transparent 56%),
+    linear-gradient(112deg, transparent 0 18%, rgba(140,255,180,.06) 21%, transparent 25%),
+    linear-gradient(0deg, rgba(0,0,0,.35), transparent 40%);
+}
+.bg-streaks::after { /* línea de pista dorada inferior izquierda */
+  content: ""; position: absolute; left: 0; width: 820px; bottom: 22px; height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(242,197,61,.55) 30%, rgba(242,197,61,.15) 100%);
+}
+
+/* --- Marca (izquierda) --- */
+.brand {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 790px;
+  padding-left: 34px;
+  display: grid;
+  grid-template-columns: 290px auto 420px;
+  grid-template-rows: auto auto;
+  align-content: center;
+  align-items: center;
+  justify-items: center;
+  row-gap: 36px;
+}
+/* Fila 1: La Rinconada ↔ Tricolor · Fila 2: INH ↔ clásico */
+.logo-rinconada { grid-column: 1; grid-row: 1; }
+.inh            { grid-column: 1; grid-row: 2; }
+.brand-divider  { grid-column: 2; grid-row: 1 / -1; }
+.tricolor-block { grid-column: 3; grid-row: 1 / -1; }  /* sin clásico: centrado en todo el alto */
+.clasico        { grid-column: 3; grid-row: 2; }
+.banner.con-clasico .brand { row-gap: 28px; }
+.banner.con-clasico .tricolor-block { grid-row: 1; }
+.banner.clasico-2l .brand { row-gap: 24px; }
+.banner.clasico-3l .brand { row-gap: 20px; }
+
+.logo-rinconada {
+  width: 276px; height: auto;
+  filter: drop-shadow(0 3px 5px rgba(0,0,0,.65));
+}
+.banner.logo-blanco .logo-rinconada {
+  filter: brightness(0) invert(1) drop-shadow(0 3px 5px rgba(0,0,0,.65));
+}
+.inh { display: flex; align-items: center; gap: 12px; }
+.logo-inh { height: 44px; width: auto; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+.inh-text {
+  font-family: "Oswald", sans-serif; font-weight: 500;
+  font-size: 15px; line-height: 1.18; letter-spacing: .05em;
+  text-transform: uppercase; color: #fff; white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,.6);
+}
+.brand-divider {
+  width: 3px; align-self: stretch; margin: -32px 26px -32px 28px; /* alto de las filas + 32px arriba/abajo */
+  background: linear-gradient(180deg, transparent, var(--gold) 18%, var(--gold-hi) 50%, var(--gold) 82%, transparent);
+  box-shadow: 0 0 10px rgba(242,197,61,.35);
+}
+.tricolor-block { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.logo-tricolor {
+  width: 420px; height: auto;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,.7));
+}
+.tagline {
+  font-family: "Oswald", sans-serif; font-weight: 500;
+  font-size: 19px; line-height: 1; letter-spacing: .24em;
+  text-transform: uppercase; color: #fff;
+  padding-left: .24em; /* compensa el espaciado final para centrar */
+  text-shadow: 0 2px 4px rgba(0,0,0,.7);
+}
+.banner.clasico-3l .logo-tricolor { width: 400px; }
+.banner.clasico-2l .clasico,
+.banner.clasico-3l .clasico { padding: 7px 18px; }
+.banner.clasico-2l .clasico > span,
+.banner.clasico-3l .clasico > span { letter-spacing: .015em; text-wrap: balance; }
+
+/* Nombre del clásico / especialidad (opcional) */
+.clasico {
+  display: none;
+  max-width: 390px;
+  min-height: 46px;
+  padding: 6px 24px;
+  align-items: center; justify-content: center;
+  transform: skewX(-9deg);
+  border: 2px solid;
+  box-shadow: 0 6px 14px rgba(0,0,0,.5);
+}
+.banner.con-clasico .clasico { display: flex; }
+.clasico > span {
+  display: inline-block; transform: skewX(9deg);
+  font-family: "Oswald", sans-serif; font-weight: 600;
+  font-size: 26px; line-height: 1.1; letter-spacing: .03em;
+  text-transform: uppercase; text-align: center; white-space: nowrap;
+}
+/* Blanco — trofeos y copas sin grado */
+.clasico.blanco {
+  background: var(--cream);
+  border-color: var(--gold-md);
+  color: var(--ink);
+}
+/* Bronce — Grado III */
+.clasico.bronce {
+  background: linear-gradient(180deg, #f8d2ac 0%, #dc9a62 28%, #b46d34 60%, #7c4319 100%);
+  border-color: #fbdcbd;
+  color: #2a1505;
+}
+.clasico.bronce > span { text-shadow: 0 1px 0 rgba(255,225,195,.55); }
+/* Plateado — Grado II */
+.clasico.plata {
+  background: linear-gradient(180deg, #ffffff 0%, #e6eaee 28%, #bcc4cb 60%, #87919a 100%);
+  border-color: #ffffff;
+  color: #17232c;
+}
+.clasico.plata > span { text-shadow: 0 1px 0 rgba(255,255,255,.7); }
+/* Dorado — Grado I */
+.clasico.dorado {
+  background: var(--gold-grad);
+  border-color: var(--gold-hi);
+  color: var(--ink);
+}
+.clasico.dorado > span { text-shadow: 0 1px 0 rgba(255,250,215,.6); }
+
+/* --- Panel de datos (derecha, borde inclinado) --- */
+.panel-edge, .panel {
+  position: absolute; right: 0;
+  clip-path: polygon(74px 0, 100% 0, 100% 100%, 0 100%);
+}
+.panel-edge {
+  top: 0; bottom: 0; left: 800px;
+  background: var(--gold-grad);
+}
+.panel {
+  top: 5px; bottom: 5px; left: 814px;
+  padding: 22px 38px 0 0;
+  background:
+    radial-gradient(ellipse 500px 220px at 85% 0%, rgba(40,160,85,.35), transparent 70%),
+    linear-gradient(165deg, #0d5a31 0%, #074424 45%, #05331a 100%);
+  display: flex; flex-direction: column;
+}
+.panel-sheen {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(115deg, transparent 0 30%, rgba(255,255,255,.06) 34%, transparent 40%),
+    linear-gradient(115deg, transparent 0 68%, rgba(255,255,255,.05) 71%, transparent 76%);
+}
+
+/* Fila 1: tarjetas */
+.row-info {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.3fr 1.2fr 1.3fr .85fr 1.15fr;
+  gap: 18px;
+  height: 160px;
+  margin-left: 80px;
+}
+.card {
+  display: flex; flex-direction: column;
+  transform: skewX(-9deg);
+  border: 3px solid var(--gold-md);
+  background: var(--gold-md);
+  box-shadow: 0 8px 16px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,240,170,.6);
+  min-width: 0;
+}
+.card-label {
+  height: 50px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--gold-grad);
+  border-bottom: 3px solid var(--gold-lo);
+}
+.card-label > span {
+  display: inline-block; transform: skewX(9deg);
+  font-weight: 600; font-size: 26px; letter-spacing: .03em;
+  text-transform: uppercase; color: var(--ink); white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(255,250,215,.6);
+}
+.card-value {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 16px;
+  background: var(--cream);
+  box-shadow: inset 0 3px 6px rgba(0,0,0,.18);
+}
+.fit {
+  display: inline-flex; align-items: baseline; white-space: nowrap;
+  transform: skewX(9deg);
+  font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+  font-weight: 800; font-size: 76px; line-height: 1;
+  color: var(--ink); letter-spacing: .005em;
+  font-variant-numeric: tabular-nums;
+}
+.fit b { font-weight: 800; }
+.fit small {
+  font-family: "Oswald", sans-serif; font-weight: 600;
+  font-size: .34em; margin-left: .2em; text-transform: uppercase; letter-spacing: .02em;
+}
+.fit i {
+  font-style: normal; font-weight: 700; font-size: .6em;
+  color: var(--gold-lo);
+  margin-left: .3em; padding-left: .3em;
+  border-left: 3px solid var(--gold-md);
+  align-self: center; line-height: 1.15;
+}
+.fit i:empty { display: none; }
+
+/* Fila 2: tiempos parciales */
+.row-times {
+  position: relative;
+  display: flex; align-items: center;
+  height: 122px;
+  margin-top: 20px;
+  margin-left: 34px;
+  background: linear-gradient(90deg, transparent 0, rgba(0,0,0,.30) 260px, rgba(0,0,0,.22) 100%);
+}
+.row-times::before, .row-times::after {
+  content: ""; position: absolute; left: 150px; right: 0; height: 3px;
+  background: var(--gold-grad-h);
+}
+.row-times::before { top: 0; }
+.row-times::after  { bottom: 0; }
+
+.speed-lines {
+  position: absolute; left: -10px; width: 150px; top: 34px; height: 60px;
+  background:
+    linear-gradient(90deg, transparent, rgba(242,197,61,.8)) 0 6px / 100% 3px no-repeat,
+    linear-gradient(90deg, transparent, rgba(242,197,61,.6)) 30px 22px / 80% 2px no-repeat,
+    linear-gradient(90deg, transparent, rgba(242,197,61,.75)) 10px 38px / 90% 3px no-repeat,
+    linear-gradient(90deg, transparent, rgba(242,197,61,.5)) 50px 54px / 70% 2px no-repeat;
+}
+.horse {
+  position: absolute; left: 28px; top: 50%; transform: translateY(-50%);
+  height: 128px; width: auto;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,.6));
+}
+.times-label {
+  flex: none;
+  margin-left: 262px;
+  height: 92px; width: 200px;
+  display: flex; align-items: center; justify-content: center;
+  transform: skewX(-9deg);
+  background: var(--gold-grad);
+  border: 2px solid var(--gold-hi);
+  box-shadow: 0 6px 14px rgba(0,0,0,.45);
+}
+.times-label > span {
+  display: block; transform: skewX(9deg);
+  font-weight: 700; font-size: 29px; line-height: 1.02;
+  text-transform: uppercase; text-align: center; color: var(--ink);
+  letter-spacing: .02em;
+}
+.times-cells {
+  flex: 1; min-width: 0; height: 100%;
+  display: flex; align-items: stretch;
+  margin-left: 20px;
+}
+.t-cell {
+  position: relative; flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px;
+}
+.t-cell + .t-cell::before {
+  content: ""; position: absolute; left: 0; top: 20%; bottom: 20%; width: 2px;
+  background: linear-gradient(180deg, transparent, var(--gold) 25%, var(--gold-hi) 50%, var(--gold) 75%, transparent);
+}
+.t-dist {
+  font-family: "Oswald", sans-serif; font-weight: 600;
+  font-size: 22px; line-height: 1; letter-spacing: .08em;
+  color: var(--gold); text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0,0,0,.6);
+}
+.t-time {
+  font-family: "Barlow Condensed", sans-serif; font-style: italic; font-weight: 800;
+  font-size: 56px; line-height: 1; white-space: nowrap;
+  height: 58px; display: flex; align-items: center;
+  color: #fff; font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 4px rgba(0,0,0,.55);
+}
+.t-time.empty { color: rgba(255,255,255,.42); letter-spacing: .12em; font-style: normal; }
+.t-cell.final .t-dist { color: var(--gold-hi); }
+
+.banner-bottom {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 5px;
+  background: linear-gradient(90deg, transparent 0, rgba(242,197,61,.0) 30%, rgba(242,197,61,.85) 39%, var(--gold) 100%);
+}
+
+/* =========================================================
+   BANNER DEL GANADOR (mismo lienzo 2000 × 360)
+   ========================================================= */
+.win-top {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 250px;
+  gap: 18px;
+  height: 160px;
+  margin-left: 80px;
+}
+.c-ganador .card-label > span {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-size: 27px; letter-spacing: .06em;
+}
+.c-ganador .card-label em {
+  font-style: normal; font-weight: 500; letter-spacing: .03em;
+  color: rgba(10,58,31,.78);
+}
+.trophy { width: 30px; height: 30px; fill: var(--ink); flex: none; }
+.win-value { justify-content: flex-start; padding: 0 26px; }
+.win-line {
+  display: inline-flex; align-items: center; gap: 22px;
+  transform: skewX(9deg);
+  white-space: nowrap;
+}
+.saddle {
+  flex: none;
+  min-width: 82px; height: 82px; padding: 0 8px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 62px; line-height: 1;
+  box-shadow: 0 3px 6px rgba(0,0,0,.35), inset 0 0 0 2px rgba(0,0,0,.18), inset 0 -10px 16px rgba(0,0,0,.12);
+}
+.saddle:empty { display: none; }
+.win-name {
+  font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+  font-weight: 800; font-size: 84px; line-height: 1;
+  text-transform: uppercase; letter-spacing: .01em;
+  color: var(--ink);
+}
+.win-name.empty { color: rgba(10,58,31,.35); }
+
+.win-bottom { padding-right: 0; }
+.win-cells {
+  position: relative;
+  flex: 1; min-width: 0; height: 100%;
+  margin-left: 250px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: 1fr 1fr;
+}
+.w-cell {
+  position: relative; min-width: 0;
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 22px;
+}
+.w-cell:nth-child(even)::before { /* separador de columnas */
+  content: ""; position: absolute; left: 0; top: 18%; bottom: 18%; width: 2px;
+  background: linear-gradient(180deg, transparent, var(--gold) 25%, var(--gold-hi) 50%, var(--gold) 75%, transparent);
+}
+.w-cell:nth-child(-n+2)::after { /* separador de filas */
+  content: ""; position: absolute; left: 22px; right: 22px; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(242,197,61,.55) 15%, rgba(242,197,61,.55) 85%, transparent);
+}
+.w-label {
+  flex: none; width: 124px;
+  font-family: "Oswald", sans-serif; font-weight: 600;
+  font-size: 20px; line-height: 1; letter-spacing: .08em;
+  color: var(--gold); text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0,0,0,.6);
+}
+.w-value {
+  flex: none; /* ancho natural, para poder medir y reducir */
+  font-family: "Oswald", sans-serif; font-weight: 600;
+  font-size: 32px; line-height: 1; white-space: nowrap;
+  color: #fff; text-transform: uppercase; letter-spacing: .02em;
+  text-shadow: 0 2px 4px rgba(0,0,0,.55);
+}
+.w-value.empty { color: rgba(255,255,255,.42); letter-spacing: .12em; }
+.w-cell:nth-child(odd) .w-label { width: 80px; } /* Jinete / Stud son cortos */

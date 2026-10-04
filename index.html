@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Banner Hípico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link crossorigin="anonymous" rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,700;1,800&family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="css/banner.css">
+  <link rel="stylesheet" href="css/editor.css">
+</head>
+<body data-view="carrera">
+
+<header class="topbar">
+  <div class="topbar-title">
+    <strong>Banner Hípico</strong>
+    <nav class="tabs" id="tabs">
+      <a href="#carrera" data-tab="carrera">Carrera</a>
+      <a href="#ganador" data-tab="ganador">Ganador</a>
+      <a href="#cintillo" data-tab="cintillo">Cintillo</a>
+    </nav>
+  </div>
+
+  <!-- Acciones de banners (Carrera / Ganador) -->
+  <div class="topbar-actions" data-views="carrera ganador">
+    <label class="inline-field" title="Resolución de la imagen exportada">
+      Tamaño
+      <select id="escala">
+        <option value="1">2000 × 360</option>
+        <option value="2">4000 × 720</option>
+      </select>
+    </label>
+    <button class="btn" id="btnCopiar" title="Copiar imagen al portapapeles">Copiar</button>
+    <button class="btn btn-primary" id="btnDescargar" title="Ctrl + S">Descargar PNG</button>
+    <button class="btn btn-gold" id="btnZip">Descargar jornada (ZIP)</button>
+  </div>
+
+  <!-- Acciones del cintillo -->
+  <div class="topbar-actions" data-views="cintillo">
+    <button class="btn" id="btnCinPng" title="Imagen fija de lo que se ve ahora en la vista previa">PNG del cuadro actual</button>
+    <button class="btn" id="btnCinGif">Descargar GIF</button>
+    <button class="btn btn-gold" id="btnCinVideo">Descargar video MP4</button>
+  </div>
+</header>
+
+<!-- Marca compartida por los banners (se clona al iniciar) -->
+<template id="tplBrand">
+  <!-- Cuadrícula de 2 filas: Rinconada ↔ Tricolor, INH ↔ clásico -->
+  <div class="brand">
+    <img class="logo-rinconada" data-asset="rinconada" alt="La Rinconada">
+    <div class="inh">
+      <img class="logo-inh" data-asset="inh" alt="INH">
+      <div class="inh-text">Instituto Nacional<br>de Hipódromos</div>
+    </div>
+    <div class="brand-divider"></div>
+    <div class="tricolor-block">
+      <img class="logo-tricolor" data-asset="tricolor" alt="Tricolor Hípico">
+      <div class="tagline">Tu revista hípica digital</div>
+    </div>
+    <div class="clasico"><span class="clasico-txt"></span></div>
+  </div>
+</template>
+
+<main class="layout">
+
+  <!-- ================= PREVIEWS ================= -->
+  <section class="preview-wrap">
+
+    <!-- Banner de carrera -->
+    <div class="preview" data-views="carrera">
+      <div class="preview-scaler">
+        <div class="banner" id="banner">
+          <div class="bg-stands"></div>
+          <div class="bg-streaks"></div>
+          <div data-brand></div>
+
+          <div class="panel-edge"></div>
+          <div class="panel">
+            <div class="panel-sheen"></div>
+
+            <div class="row-info">
+              <div class="card c-fecha">
+                <div class="card-label"><span>Fecha</span></div>
+                <div class="card-value"><span class="fit" id="vFecha"></span></div>
+              </div>
+              <div class="card c-dist">
+                <div class="card-label"><span>Distancia</span></div>
+                <div class="card-value"><span class="fit"><b id="vDist"></b><small>mts.</small></span></div>
+              </div>
+              <div class="card c-carrera">
+                <div class="card-label"><span>Carrera</span></div>
+                <div class="card-value"><span class="fit"><b id="vCarrera"></b><i id="vValida"></i></span></div>
+              </div>
+              <div class="card c-reunion">
+                <div class="card-label"><span>Reunión</span></div>
+                <div class="card-value"><span class="fit" id="vReunion"></span></div>
+              </div>
+              <div class="card c-anual">
+                <div class="card-label"><span>Nº Carrera Anual</span></div>
+                <div class="card-value"><span class="fit" id="vAnual"></span></div>
+              </div>
+            </div>
+
+            <div class="row-times">
+              <div class="speed-lines"></div>
+              <img class="horse" data-asset="caballo" alt="">
+              <div class="times-label"><span>Tiempos<br>Parciales</span></div>
+              <div class="times-cells" id="vTiempos"></div>
+            </div>
+          </div>
+          <div class="banner-bottom"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Banner del ganador -->
+    <div class="preview" data-views="ganador">
+      <div class="preview-scaler">
+        <div class="banner banner-ganador" id="bannerGanador">
+          <div class="bg-stands"></div>
+          <div class="bg-streaks"></div>
+          <div data-brand></div>
+
+          <div class="panel-edge"></div>
+          <div class="panel">
+            <div class="panel-sheen"></div>
+
+            <div class="win-top">
+              <div class="card c-ganador">
+                <div class="card-label">
+                  <span>
+                    <svg class="trophy" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v2h3v3a4 4 0 0 1-4 4h-.3A5 5 0 0 1 13 14.9V17h3v2H8v-2h3v-2.1A5 5 0 0 1 8.3 12H8a4 4 0 0 1-4-4V5h3V3Zm-1 4v1a2 2 0 0 0 2 2V7H6Zm10 0v3a2 2 0 0 0 2-2V7h-2Z"/><rect x="6" y="20" width="12" height="2" rx="1"/></svg>
+                    Ganador <em id="wCarreraInfo"></em>
+                  </span>
+                </div>
+                <div class="card-value win-value">
+                  <span class="win-line">
+                    <span class="saddle" id="wDorsal"></span>
+                    <span class="win-name" id="wCaballo"></span>
+                  </span>
+                </div>
+              </div>
+              <div class="card c-tiempo">
+                <div class="card-label"><span>Tiempo</span></div>
+                <div class="card-value"><span class="fit" id="wTiempo"></span></div>
+              </div>
+            </div>
+
+            <div class="row-times win-bottom">
+              <div class="speed-lines"></div>
+              <img class="horse" data-asset="caballo" alt="">
+              <div class="win-cells">
+                <div class="w-cell"><span class="w-label">Jinete</span><span class="w-value" id="wJinete"></span></div>
+                <div class="w-cell"><span class="w-label">Entrenador</span><span class="w-value" id="wEntrenador"></span></div>
+                <div class="w-cell"><span class="w-label">Stud</span><span class="w-value" id="wStud"></span></div>
+                <div class="w-cell"><span class="w-label">Haras</span><span class="w-value" id="wHaras"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="banner-bottom"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cintillo animado -->
+    <div class="cin-stage" data-views="cintillo">
+      <canvas id="cinCanvas" width="1920" height="100"></canvas>
+    </div>
+    <div class="cin-player" data-views="cintillo">
+      <button class="btn btn-sm" id="cinPlay" title="Reproducir / pausar (barra espaciadora)">Pausar</button>
+      <button class="btn btn-sm" id="cinRestart" title="Volver al inicio">↺</button>
+      <input type="range" id="cinSeek" min="0" max="30" step="0.01" value="0" aria-label="Posición">
+      <span class="cin-time" id="cinTime">0.0 / 30.0 s</span>
+    </div>
+
+    <p class="hint" data-views="carrera ganador">Vista previa a escala. La imagen se exporta en alta resolución.
+      Atajos: <kbd>Ctrl</kbd>+<kbd>S</kbd> descargar · <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> carrera anterior/siguiente</p>
+    <p class="hint" data-views="cintillo">El fondo cuadriculado es solo de la vista previa. El MP4 se genera más rápido que en tiempo real;
+      el GIF tarda un poco más y pesa más (los GIF están limitados a 256 colores).</p>
+  </section>
+
+  <!-- ================= EDITOR ================= -->
+  <section class="editor">
+
+    <!-- Jornada (Carrera y Ganador) -->
+    <div class="panel-box" data-views="carrera ganador">
+      <h2>Jornada</h2>
+      <div class="grid-2">
+        <label class="field">Fecha
+          <input type="date" id="fFecha">
+        </label>
+        <label class="field">Reunión Nº
+          <input type="number" id="fReunion" min="1" inputmode="numeric">
+        </label>
+      </div>
+      <label class="field">Logo La Rinconada
+        <div class="seg" id="fLogo">
+          <button data-v="dorado">Dorado</button>
+          <button data-v="blanco">Blanco</button>
+        </div>
+      </label>
+
+      <div class="subhead">
+        <h3>Carreras <span class="muted" id="countCarreras"></span></h3>
+        <div class="btn-row">
+          <button class="btn btn-sm" id="btnAgregar">+ Agregar</button>
+          <button class="btn btn-sm" id="btnDuplicar">Duplicar</button>
+          <button class="btn btn-sm btn-danger" id="btnEliminar">Eliminar</button>
+        </div>
+      </div>
+      <div class="race-list" id="raceList"></div>
+
+      <details class="generator">
+        <summary>Generar jornada completa</summary>
+        <div class="grid-3">
+          <label class="field">Desde carrera
+            <input type="number" id="gDesde" value="1" min="1">
+          </label>
+          <label class="field">Cantidad
+            <input type="number" id="gCantidad" value="12" min="1" max="30">
+          </label>
+          <label class="field">Nº anual inicial
+            <input type="number" id="gAnual" min="1">
+          </label>
+        </div>
+        <button class="btn btn-sm" id="btnGenerar">Reemplazar carreras</button>
+      </details>
+
+      <div class="file-row">
+        <button class="btn btn-sm btn-ghost" id="btnGuardar">Guardar jornada (.json)</button>
+        <button class="btn btn-sm btn-ghost" id="btnCargar">Abrir jornada…</button>
+        <input type="file" id="fileCargar" accept="application/json,.json" hidden>
+      </div>
+    </div>
+
+    <!-- Carrera -->
+    <div class="panel-box" data-views="carrera">
+      <h2 id="tituloCarrera">Carrera</h2>
+      <div class="grid-4">
+        <label class="field">Carrera Nº
+          <input type="number" id="fNumero" min="1" inputmode="numeric">
+        </label>
+        <label class="field">Válida
+          <input type="text" id="fValida" list="validas" placeholder="(ninguna)">
+          <datalist id="validas">
+            <option value="1ra Vál."><option value="2da Vál."><option value="3ra Vál.">
+            <option value="4ta Vál."><option value="5ta Vál."><option value="6ta Vál.">
+          </datalist>
+        </label>
+        <label class="field">Distancia (m)
+          <input type="number" id="fDistancia" min="100" step="100" inputmode="numeric">
+        </label>
+        <label class="field">Nº anual
+          <input type="number" id="fAnual" min="1" inputmode="numeric">
+        </label>
+      </div>
+
+      <div class="clasico-row">
+        <label class="field">Clásico / especialidad (Opcional)
+          <input type="text" id="fClasico" maxlength="120" placeholder="Ej: Clásico Simón Bolívar (G1)">
+        </label>
+        <label class="field">Categoría
+          <div class="seg seg-grado" id="fClasicoEstilo">
+            <button data-v="blanco"><i class="sw sw-blanco"></i>Blanco <small>Sin grado</small></button>
+            <button data-v="bronce"><i class="sw sw-bronce"></i>Bronce <small>GIII</small></button>
+            <button data-v="plata"><i class="sw sw-plata"></i>Plateado <small>GII</small></button>
+            <button data-v="dorado"><i class="sw sw-dorado"></i>Dorado <small>GI</small></button>
+          </div>
+        </label>
+      </div>
+
+      <div class="subhead">
+        <h3>Tiempos parciales</h3>
+        <div class="btn-row">
+          <button class="btn btn-sm" id="btnAutoParciales" title="Genera los puntos de control según la distancia">Auto por distancia</button>
+          <button class="btn btn-sm" id="btnAddParcial">+ Parcial</button>
+        </div>
+      </div>
+      <div class="splits" id="splits"></div>
+      <p class="hint">Escribe solo números: <code>2480</code> → <code>24.80</code>, <code>11240</code> → <code>1:12.40</code>.
+        Deja vacío para mostrar «– –». Enter salta al siguiente.</p>
+    </div>
+
+    <!-- Ganador -->
+    <div class="panel-box" data-views="ganador">
+      <h2 id="tituloGanador">Ganador</h2>
+      <div class="win-form">
+        <label class="field">Nº
+          <input type="number" id="gwDorsal" min="1" max="24" inputmode="numeric" placeholder="–">
+        </label>
+        <label class="field">Ejemplar ganador
+          <input type="text" id="gwCaballo" maxlength="40" placeholder="Nombre del caballo">
+        </label>
+        <label class="field">Tiempo final
+          <input type="text" id="gwTiempo" inputmode="decimal" placeholder="– –">
+        </label>
+      </div>
+      <div class="grid-2">
+        <label class="field">Jinete
+          <input type="text" id="gwJinete" maxlength="50">
+        </label>
+        <label class="field">Entrenador
+          <input type="text" id="gwEntrenador" maxlength="50">
+        </label>
+        <label class="field">Stud
+          <input type="text" id="gwStud" maxlength="60">
+        </label>
+        <label class="field">Haras
+          <input type="text" id="gwHaras" maxlength="60">
+        </label>
+      </div>
+      <p class="hint">La fecha, la distancia y el clásico se toman de la carrera. El color de la mantilla sale del número del ejemplar.
+        Si dejas el tiempo vacío se usa el último parcial cargado.</p>
+    </div>
+
+    <!-- Cintillo -->
+    <div class="panel-box" data-views="cintillo">
+      <h2>Cintillo animado</h2>
+      <div class="cin-form">
+        <div>
+          <h3 class="step"><span>1</span> Narrador <span class="muted" id="cinDurA"></span></h3>
+          <div class="grid-2">
+            <label class="field">Etiqueta
+              <input type="text" id="cEtiqueta" maxlength="20" list="etiquetas">
+              <datalist id="etiquetas">
+                <option value="Narración"><option value="Narra"><option value="Narrador"><option value="Comentarios">
+              </datalist>
+            </label>
+            <label class="field">Nombre del narrador
+              <input type="text" id="cNarrador" maxlength="50" placeholder="Nombre y apellido">
+            </label>
+          </div>
+          <h3 class="step"><span>2</span> Tricolor Hípico <span class="muted" id="cinDurB"></span></h3>
+          <div class="grid-2">
+            <label class="field">Sitio web
+              <input type="text" id="cWeb" maxlength="40">
+            </label>
+            <label class="field">Texto secundario
+              <input type="text" id="cLema" maxlength="40">
+            </label>
+          </div>
+        </div>
+        <div>
+          <h3 class="step"><span>3</span> Tiempos y tamaño</h3>
+          <div class="grid-3">
+            <label class="field">Narrador (s)
+              <input type="number" id="cTA" min="2" max="120" step="1">
+            </label>
+            <label class="field">Tricolor (s)
+              <input type="number" id="cTB" min="2" max="300" step="1">
+            </label>
+            <label class="field">Repetir GIF
+              <select id="cLoop">
+                <option value="no">No (queda fijo)</option>
+                <option value="si">Sí, en bucle</option>
+              </select>
+            </label>
+          </div>
+          <div class="grid-3">
+            <label class="field">Tamaño
+              <select id="cPreset">
+                <option value="1920x100">1920 × 100 · video 1080p</option>
+                <option value="1280x68">1280 × 68 · video 720p</option>
+                <option value="1080x100">1080 × 100 · video vertical</option>
+                <option value="3840x200">3840 × 200 · video 4K</option>
+                <option value="custom">Personalizado</option>
+              </select>
+            </label>
+            <label class="field">Ancho (px)
+              <input type="number" id="cW" min="320" max="3840" step="2">
+            </label>
+            <label class="field">Alto (px)
+              <input type="number" id="cH" min="40" max="400" step="2">
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/assets-data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.5/build/mp4-muxer.min.js"></script>
+<script src="js/app.js"></script>
+<script src="js/cintillo.js"></script>
+</body>
+</html>
