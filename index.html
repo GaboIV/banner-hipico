@@ -23,6 +23,7 @@
     </nav>
   </div>
 
+  <div class="topbar-right">
   <!-- Acciones de banners (Carrera / Ganador) -->
   <div class="topbar-actions" data-views="carrera ganador">
     <label class="inline-field" title="Resolución de la imagen exportada">
@@ -34,14 +35,30 @@
     </label>
     <button class="btn" id="btnCopiar" title="Copiar imagen al portapapeles">Copiar</button>
     <button class="btn btn-primary" id="btnDescargar" title="Ctrl + S">Descargar PNG</button>
-    <button class="btn btn-gold" id="btnZip">Descargar jornada (ZIP)</button>
+    <button class="btn" id="btnZip">Descargar jornada (ZIP)</button>
   </div>
 
   <!-- Acciones del cintillo -->
   <div class="topbar-actions" data-views="cintillo">
     <button class="btn" id="btnCinPng" title="Imagen fija de lo que se ve ahora en la vista previa">PNG del cuadro actual</button>
     <button class="btn" id="btnCinGif">Descargar GIF</button>
-    <button class="btn btn-gold" id="btnCinVideo">Descargar video MP4</button>
+    <button class="btn" id="btnCinVideo">Descargar video MP4</button>
+  </div>
+
+  <!-- Paquete: tiempos uno a uno + ganador + cintillo, todo en un ZIP -->
+  <div class="menu" id="menuPaquete">
+    <button class="btn btn-gold" id="btnPaquete" aria-haspopup="menu" aria-expanded="false">Paquete ZIP ▾</button>
+    <div class="menu-pop" id="menuPaquetePop" role="menu" hidden>
+      <button type="button" role="menuitem" data-alcance="carrera">
+        <strong id="paqueteCarreraTxt">Esta carrera</strong>
+        <small>Imagen sin tiempos, una por cada parcial, el ganador y el cintillo (MP4 + GIF)</small>
+      </button>
+      <button type="button" role="menuitem" data-alcance="jornada">
+        <strong>Toda la jornada</strong>
+        <small>Una carpeta por carrera con sus imágenes y ganador, más el cintillo (MP4 + GIF)</small>
+      </button>
+    </div>
+  </div>
   </div>
 </header>
 
@@ -187,8 +204,15 @@
     <!-- Jornada (Carrera y Ganador) -->
     <div class="panel-box" data-views="carrera ganador">
       <h2>Jornada</h2>
+      <label class="field" id="campoReunionDb" hidden>Fecha · reunión de la revista
+        <div class="select-row">
+          <select id="fReunionDb" aria-label="Reunión de la base de datos"></select>
+          <button class="btn btn-sm" id="btnRecargarDb" type="button" title="Volver a leer esta reunión de la base de datos">↻</button>
+        </div>
+      </label>
+      <p class="db-status" id="dbEstado"></p>
       <div class="grid-2">
-        <label class="field">Fecha
+        <label class="field" id="campoFecha">Fecha
           <input type="date" id="fFecha">
         </label>
         <label class="field">Reunión Nº
@@ -286,6 +310,16 @@
     <!-- Ganador -->
     <div class="panel-box" data-views="ganador">
       <h2 id="tituloGanador">Ganador</h2>
+      <div class="field" id="campoEjemplar" hidden>
+        <label for="gwBuscar">Elegir ejemplar ganador por Nº o nombre · se completan los datos de la revista</label>
+        <div class="combo" id="gwCombo">
+          <input type="text" id="gwBuscar" autocomplete="off" spellcheck="false"
+                 placeholder="Escribe el Nº o el nombre del ejemplar…"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="gwLista">
+          <button class="combo-toggle" type="button" tabindex="-1" aria-label="Ver todos los ejemplares">▾</button>
+          <ul class="combo-list" id="gwLista" role="listbox" hidden></ul>
+        </div>
+      </div>
       <div class="win-form">
         <label class="field">Nº
           <input type="number" id="gwDorsal" min="1" max="24" inputmode="numeric" placeholder="–">
@@ -311,7 +345,8 @@
           <input type="text" id="gwHaras" maxlength="60">
         </label>
       </div>
-      <p class="hint">La fecha, la distancia y el clásico se toman de la carrera. El color de la mantilla sale del número del ejemplar.
+      <p class="hint">Al elegir el ejemplar se llenan el Nº, jinete, entrenador, stud, haras y, si ya hay resultado, el tiempo oficial.
+        Todo se puede corregir a mano. La fecha, la distancia y el clásico se toman de la carrera; el color de la mantilla sale del número.
         Si dejas el tiempo vacío se usa el último parcial cargado.</p>
     </div>
 
@@ -321,6 +356,12 @@
       <div class="cin-form">
         <div>
           <h3 class="step"><span>1</span> Narrador <span class="muted" id="cinDurA"></span></h3>
+          <label class="field">Narradores guardados
+            <div class="select-row">
+              <select id="cNarradorSel" aria-label="Narradores guardados"></select>
+              <button class="btn btn-sm btn-danger" id="btnNarradorBorrar" type="button" title="Quitar de la lista">Quitar</button>
+            </div>
+          </label>
           <div class="grid-2">
             <label class="field">Etiqueta
               <input type="text" id="cEtiqueta" maxlength="20" list="etiquetas">
@@ -332,6 +373,7 @@
               <input type="text" id="cNarrador" maxlength="50" placeholder="Nombre y apellido">
             </label>
           </div>
+          <p class="hint">Cada narrador nuevo se guarda solo al escribirlo (al salir del campo) y queda en la lista para la próxima vez.</p>
           <h3 class="step"><span>2</span> Tricolor Hípico <span class="muted" id="cinDurB"></span></h3>
           <div class="grid-2">
             <label class="field">Sitio web

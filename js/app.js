@@ -2,6 +2,12 @@
   "use strict";
 
   const STORAGE_KEY = "bannerHipico.v1";
+  // Copia de cada jornada traída de la base, para no perder tiempos y ganadores al cambiar de fecha.
+  const JORNADAS_KEY = "bannerHipico.jornadas";
+  const MAX_JORNADAS = 30;
+  // Servidor de la revista (npm start). Si el editor se abre desde otro lado (python -m http.server,
+  // doble clic), se busca igual en este puerto; si no aparece, el editor sigue funcionando a mano.
+  const API_PUERTO = 5173;
   const BANNER_W = 2000;
   const BANNER_H = 360;
   const MAX_PARCIALES = 7;
@@ -30,10 +36,10 @@
   // ---------- Estado ----------
   function parcialesPorDistancia(dist) {
     dist = Number(dist) || 0;
-    if (dist < 400) return [{ d: dist, t: "" }];
-    const step = dist <= 1300 ? 200 : 400;
+    // Los parciales oficiales se toman cada 400 m y el último es la llegada.
+    if (dist <= 400) return [{ d: dist, t: "" }];
     const out = [];
-    for (let d = 400; d < dist; d += step) out.push({ d, t: "" });
+    for (let d = 400; d < dist; d += 400) out.push({ d, t: "" });
     out.push({ d: dist, t: "" });
     // Si son demasiados, conservar los primeros y el final.
     while (out.length > MAX_PARCIALES) out.splice(out.length - 2, 1);
@@ -48,6 +54,8 @@
       clasico: "", clasicoEstilo: "blanco",
       parciales: parcialesPorDistancia(distancia),
       ganador: ganadorVacio(),
+      inscritos: [],          // ejemplares de la carrera según la revista (si vino de la base)
+      ganadorOficial: null,   // Nº del ganador según el resultado cargado en la revista
     };
   }
 
@@ -62,6 +70,7 @@
     c.parciales[0].t = "24.80";
     return {
       fecha: "2026-09-20", reunion: 37, logo: "dorado", escala: 2, actual: 0, carreras: [c],
+      reunionId: null, hipodromo: "",
       cintillo: cintilloInicial(),
     };
   }
@@ -83,6 +92,8 @@
       clasico: c.clasico ?? "", clasicoEstilo: ESTILOS_CLASICO.includes(c.clasicoEstilo) ? c.clasicoEstilo : "blanco",
       parciales: Array.isArray(c.parciales) ? c.parciales.map((p) => ({ d: p.d ?? "", t: p.t ?? "" })) : [],
       ganador: { ...ganadorVacio(), ...(c.ganador || {}) },
+      inscritos: Array.isArray(c.inscritos) ? c.inscritos : [],
+      ganadorOficial: c.ganadorOficial ?? null,
     }));
     return {
       fecha: s.fecha || base.fecha,
@@ -92,6 +103,9 @@
       actual: Math.min(Math.max(0, s.actual | 0), carreras.length - 1),
       carreras,
       cintillo: { ...cintilloInicial(), ...(s.cintillo || {}) },
+      reunionId: s.reunionId ?? null,
+      modoManual: !!s.modoManual,
+      hipodromo: s.hipodromo || "",
     };
   }
 
@@ -399,9 +413,11 @@
     const last = state.carreras[state.carreras.length - 1];
     if (!$("#gAnual").value) $("#gAnual").value = last.anual || "";
     Object.entries(fg).forEach(([k, el]) => (el.value = c.ganador[k] ?? ""));
+    renderEjemplares();
     fg.tiempo.placeholder = ultimoParcial(c) ? `${ultimoParcial(c)} (último parcial)` : "– –";
     renderTitulos();
     renderSplits();
+    renderModoFecha();
   }
 
   function renderTitulos() {
@@ -474,8 +490,132 @@
   Object.entries(fg).forEach(([k, el]) => {
     el.addEventListener("input", () => {
       actual().ganador[k] = k === "dorsal" ? num(el.value) : el.value;
+      if (k === "dorsal" || k === "caballo") renderEjemplares();
       cambio(k === "caballo");
     });
+  });
+
+  // Buscador de ejemplar: se escribe el Nº o el nombre y, al elegirlo, se llena el resto
+  // con los datos de la revista.
+  const buscar = $("#gwBuscar");
+  const listaEj = $("#gwLista");
+  let opcionesEj = [];
+  let activoEj = -1;
+
+  function ganadorDeInscrito(ins, tiempoPrevio = "") {
+    return {
+      dorsal: ins.dorsal, caballo: ins.caballo, jinete: ins.jinete, entrenador: ins.entrenador,
+      stud: ins.stud, haras: ins.haras, tiempo: ins.tiempo || tiempoPrevio,
+    };
+  }
+  const sinAcentos = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const etiquetaEj = (ins) => `${ins.dorsal} · ${ins.caballo}`;
+  const escapar = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+
+  // Nº: coincidencia exacta primero y luego los que empiezan igual. Texto: el nombre contiene lo escrito.
+  function filtrarEj(q) {
+    const lista = actual().inscritos || [];
+    q = q.trim();
+    if (!q) return lista;
+    const m = /^(\d+)\s*(?:·\s*)?(.*)$/.exec(q);
+    if (m && !m[2]) {
+      return lista.filter((i) => String(i.dorsal).startsWith(m[1]))
+        .sort((a, b) => (String(b.dorsal) === m[1]) - (String(a.dorsal) === m[1]) || a.dorsal - b.dorsal);
+    }
+    const t = sinAcentos(m && m[2] ? m[2] : q);
+    return lista.filter((i) => sinAcentos(i.caballo).includes(t))
+      .sort((a, b) => sinAcentos(a.caballo).indexOf(t) - sinAcentos(b.caballo).indexOf(t) || a.dorsal - b.dorsal);
+  }
+
+  function resaltar(nombre, q) {
+    const t = sinAcentos(q.trim());
+    const i = t && !/^\d/.test(t) ? sinAcentos(nombre).indexOf(t) : -1;
+    if (i < 0) return escapar(nombre);
+    return escapar(nombre.slice(0, i)) + "<mark>" + escapar(nombre.slice(i, i + t.length)) + "</mark>" + escapar(nombre.slice(i + t.length));
+  }
+
+  function abrirListaEj(q = buscar.value) {
+    const c = actual();
+    opcionesEj = filtrarEj(q);
+    listaEj.innerHTML = "";
+    if (!opcionesEj.length) {
+      listaEj.innerHTML = '<li class="vacio">Ningún ejemplar coincide</li>';
+    }
+    opcionesEj.forEach((ins, idx) => {
+      const li = document.createElement("li");
+      li.setAttribute("role", "option");
+      li.className = ins.retirado ? "ret" : "";
+      const [fondo, tinta] = MANTILLAS[ins.dorsal] || ["#3b4a42", "#fff"];
+      const oficial = Number(ins.dorsal) === Number(c.ganadorOficial);
+      const sub = [ins.jinete, ins.stud && `Stud ${ins.stud}`].filter(Boolean).join(" · ");
+      li.innerHTML = `<span class="mant" style="background:${fondo};color:${tinta}">${ins.dorsal}</span>
+        <span class="nom">${resaltar(ins.caballo, q)}${sub ? `<small>${escapar(sub)}</small>` : ""}</span>
+        <span class="tag${oficial ? " oficial" : ""}">${oficial ? "🏆 Ganador" : ins.retirado ? "Retirado" : ""}</span>`;
+      li.addEventListener("mousedown", (e) => { e.preventDefault(); elegirEj(ins); });
+      li.addEventListener("mousemove", () => marcarEj(idx));
+      listaEj.append(li);
+    });
+    listaEj.hidden = false;
+    buscar.setAttribute("aria-expanded", "true");
+    const sel = opcionesEj.findIndex((i) => Number(i.dorsal) === Number(c.ganador.dorsal) && i.caballo === c.ganador.caballo);
+    marcarEj(q.trim() && !buscar.dataset.elegido ? 0 : sel);
+  }
+
+  function marcarEj(idx) {
+    activoEj = idx;
+    [...listaEj.children].forEach((li, i) => li.classList.toggle("activo", i === idx));
+    listaEj.children[idx]?.scrollIntoView({ block: "nearest" });
+  }
+
+  function cerrarListaEj() {
+    listaEj.hidden = true;
+    buscar.setAttribute("aria-expanded", "false");
+  }
+
+  function elegirEj(ins) {
+    const c = actual();
+    c.ganador = ganadorDeInscrito(ins, c.ganador.tiempo);
+    Object.entries(fg).forEach(([k, el]) => (el.value = c.ganador[k] ?? ""));
+    buscar.value = etiquetaEj(ins);
+    buscar.dataset.elegido = "1";
+    cerrarListaEj();
+    cambio();
+    if (ins.retirado) toast(`${ins.caballo} figura como retirado en la revista`, true);
+  }
+
+  function renderEjemplares() {
+    const c = actual();
+    const lista = c.inscritos || [];
+    $("#campoEjemplar").hidden = !lista.length;
+    cerrarListaEj();
+    if (!lista.length) return;
+    const g = c.ganador;
+    const elegido = lista.find((ins) => Number(ins.dorsal) === Number(g.dorsal) && ins.caballo === g.caballo);
+    buscar.value = elegido ? etiquetaEj(elegido) : "";
+    buscar.dataset.elegido = elegido ? "1" : "";
+  }
+
+  buscar.addEventListener("focus", () => { buscar.select(); abrirListaEj(""); });
+  buscar.addEventListener("input", () => { buscar.dataset.elegido = ""; abrirListaEj(); });
+  buscar.addEventListener("blur", () => { cerrarListaEj(); renderEjemplares(); });
+  buscar.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (listaEj.hidden) return abrirListaEj("");
+      const n = opcionesEj.length;
+      if (n) marcarEj((activoEj + (e.key === "ArrowDown" ? 1 : -1) + n) % n);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const ins = opcionesEj[activoEj] || (opcionesEj.length === 1 ? opcionesEj[0] : null);
+      if (!listaEj.hidden && ins) { elegirEj(ins); buscar.blur(); }
+    } else if (e.key === "Escape") {
+      buscar.blur();
+    }
+  });
+  $("#gwCombo .combo-toggle").addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    if (listaEj.hidden) { buscar.focus(); if (document.activeElement === buscar && listaEj.hidden) abrirListaEj(""); }
+    else buscar.blur();
   });
   fg.tiempo.addEventListener("blur", () => {
     const n = normalizarTiempo(fg.tiempo.value);
@@ -494,7 +634,7 @@
     const c = actual();
     if (c.parciales.length >= MAX_PARCIALES) return;
     const last = c.parciales[c.parciales.length - 1];
-    c.parciales.push({ d: last ? Number(last.d) + 200 : 400, t: "" });
+    c.parciales.push({ d: last ? Number(last.d) + 400 : 400, t: "" });
     renderSplits(); cambio();
     const ins = $$(".split .unit input");
     ins[ins.length - 1]?.focus();
@@ -535,6 +675,185 @@
     toast(`${cant} carreras creadas. Ajusta distancia y válidas de cada una.`);
   });
 
+  // ---------- Base de datos de la revista ----------
+  let API = null; // origen donde respondió /api/estado
+
+  // Prueba el mismo origen y luego el servidor de la revista en el puerto 5173.
+  async function buscarApi() {
+    const propio = location.protocol.startsWith("http") ? [location.origin] : [];
+    const revista = [`http://127.0.0.1:${API_PUERTO}`, `http://localhost:${API_PUERTO}`];
+    const candidatos = [...new Set(Number(location.port) === API_PUERTO ? [...propio, ...revista] : [...revista, ...propio])];
+    for (const base of candidatos) {
+      try {
+        const r = await fetch(`${base}/api/estado`, { cache: "no-store" });
+        if (!r.ok) continue;
+        const est = await r.json();
+        if (typeof est.db === "boolean") { API = base; return est; }
+      } catch (_) { /* no está ahí */ }
+    }
+    return null;
+  }
+  const apiLista = buscarApi();
+
+  async function pedir(url, opts) {
+    if (!API) throw new Error("Sin servidor de la revista");
+    const r = await fetch(API + url, opts);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || `Error ${r.status}`);
+    return data;
+  }
+
+  function leerJornadas() {
+    try { return JSON.parse(localStorage.getItem(JORNADAS_KEY)) || {}; } catch (_) { return {}; }
+  }
+  // Guarda lo editado de la jornada actual para recuperarlo al volver a esa fecha
+  // (la jornada manual queda bajo la clave "manual").
+  function archivarJornada() {
+    const todas = leerJornadas();
+    todas[state.reunionId ?? "manual"] = {
+      t: Date.now(), actual: state.actual, fecha: state.fecha, reunion: state.reunion,
+      carreras: state.carreras.map(({ inscritos, ...c }) => c),
+    };
+    const ids = Object.keys(todas).sort((a, b) => todas[b].t - todas[a].t);
+    ids.slice(MAX_JORNADAS).forEach((id) => delete todas[id]);
+    try { localStorage.setItem(JORNADAS_KEY, JSON.stringify(todas)); } catch (_) { /* almacenamiento lleno */ }
+  }
+
+  function carreraDesdeDb(dc) {
+    const c = nuevaCarrera(dc.numero, dc.anual, dc.distancia);
+    c.valida = dc.valida || "";
+    c.clasico = dc.clasico || "";
+    c.clasicoEstilo = ESTILOS_CLASICO.includes(dc.clasicoEstilo) ? dc.clasicoEstilo : "blanco";
+    c.inscritos = dc.inscritos || [];
+    c.ganadorOficial = dc.ganadorDorsal ?? null;
+    const oficial = c.inscritos.find((i) => Number(i.dorsal) === Number(c.ganadorOficial));
+    if (dc.parciales && dc.parciales.length) {
+      c.parciales = dc.parciales.slice(-MAX_PARCIALES);
+    } else if (oficial && oficial.tiempo) {
+      // Sin parciales en la revista: al menos el tiempo final en la llegada.
+      const final = c.parciales[c.parciales.length - 1];
+      if (final && Number(final.d) === Number(c.distancia)) final.t = oficial.tiempo;
+    }
+    if (oficial) c.ganador = ganadorDeInscrito(oficial);
+    return c;
+  }
+
+  // La base manda en número, distancia, Nº anual e inscritos; lo editado a mano en esa fecha
+  // (válida, clásico, tiempos, ganador) se conserva. Lo que siga vacío se llena con la base.
+  function combinar(db, previa) {
+    if (!previa) return db;
+    return {
+      ...db,
+      valida: previa.valida ?? db.valida,
+      clasico: previa.clasico ?? db.clasico,
+      clasicoEstilo: previa.clasicoEstilo || db.clasicoEstilo,
+      parciales: (previa.parciales || []).some((p) => p.t) ? previa.parciales : db.parciales,
+      ganador: (previa.ganador?.caballo || "").trim() ? { ...ganadorVacio(), ...previa.ganador } : db.ganador,
+    };
+  }
+
+  async function cargarReunion(id, { limpia = false } = {}) {
+    const sel = $("#fReunionDb");
+    sel.disabled = true;
+    try {
+      const r = await pedir(`/api/reuniones/${id}`);
+      archivarJornada();
+      const previa = limpia ? null : leerJornadas()[id];
+      const carreras = r.carreras.map((dc) =>
+        combinar(carreraDesdeDb(dc), previa?.carreras?.find((c) => Number(c.numero) === Number(dc.numero))));
+      if (!carreras.length) carreras.push(nuevaCarrera(1, "", 1200));
+      Object.assign(state, {
+        reunionId: r.id, hipodromo: r.hipodromo, modoManual: false, fecha: r.fecha, reunion: r.nro ?? "",
+        carreras, actual: Math.min(previa?.actual ?? 0, carreras.length - 1),
+      });
+      renderTodo(); guardar();
+      const ganadores = carreras.filter((c) => c.ganadorOficial != null).length;
+      toast(`Reunión ${r.nro ?? ""} · ${fechaCorta(r.fecha)}: ${r.carreras.length} carreras${ganadores ? `, ${ganadores} con ganador` : ""}`);
+    } catch (err) {
+      console.error(err);
+      toast(`No se pudo cargar la reunión: ${err.message}`, true);
+    } finally {
+      sel.disabled = false;
+      sel.value = state.reunionId == null ? "" : String(state.reunionId);
+    }
+  }
+
+  const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+  function etiquetaReunion(r) {
+    const [y, m, d] = r.fecha.split("-").map(Number);
+    const dia = DIAS[new Date(y, m - 1, d).getDay()];
+    const res = !r.conGanador ? "" : r.conGanador >= r.carreras ? " · ✓ resultados" : ` · ${r.conGanador}/${r.carreras} resultados`;
+    return `${dia} ${fechaCorta(r.fecha)} · Reunión ${r.nro ?? "?"} · ${r.carreras} carreras${res}`;
+  }
+
+  function estadoDb(texto, clase = "") {
+    const el = $("#dbEstado");
+    el.textContent = texto;
+    el.className = "db-status " + clase;
+  }
+
+  async function iniciarDb() {
+    const est = await apiLista;
+    if (!est) {
+      estadoDb(`No encuentro el servidor de la revista. Ejecuta «npm start» en la carpeta del Banner (puerto ${API_PUERTO}) y recarga la página. Mientras tanto puedes trabajar a mano.`, "error");
+      return;
+    }
+    try {
+      if (!est.db) throw new Error(est.error || "sin base");
+      const lista = await pedir("/api/reuniones");
+      const sel = $("#fReunionDb");
+      sel.innerHTML = "";
+      sel.add(new Option("— Jornada manual (sin base de datos) —", ""));
+      const grupos = new Map();
+      lista.forEach((r) => {
+        if (!grupos.has(r.hipodromo)) {
+          const g = document.createElement("optgroup");
+          g.label = r.hipodromo;
+          grupos.set(r.hipodromo, g);
+        }
+        grupos.get(r.hipodromo).append(new Option(etiquetaReunion(r), r.id));
+      });
+      grupos.forEach((g) => sel.append(g));
+      sel.value = state.reunionId == null ? "" : String(state.reunionId);
+      $("#campoReunionDb").hidden = false;
+      estadoDb(`Conectado a la revista${est.prod ? " (PRODUCCIÓN)" : ""} · ${lista.length} reuniones`, est.prod ? "prod" : "ok");
+      renderModoFecha();
+      // Al abrir, se refresca la fecha elegida para traer resultados nuevos (lo editado se conserva).
+      if (state.reunionId != null && lista.some((r) => r.id === state.reunionId)) {
+        cargarReunion(state.reunionId);
+      } else if (!state.modoManual) {
+        // Jornada manual con una fecha que la revista ya tiene: se carga la jornada completa
+        // (la manual queda guardada en «Jornada manual»). Si no, la próxima reunión o la última.
+        const hoy = new Date().toISOString().slice(0, 10);
+        const r = lista.find((x) => x.fecha === state.fecha)
+          || [...lista].reverse().find((x) => x.fecha >= hoy) || lista[0];
+        if (r) cargarReunion(r.id);
+      }
+    } catch (err) {
+      estadoDb(`No se pudo conectar con la base de datos de la revista (${err.message}). Puedes trabajar a mano.`, "error");
+    }
+  }
+
+  // Con una reunión de la base, la fecha la da el selector; en modo manual se escribe.
+  function renderModoFecha() {
+    $("#campoFecha").hidden = !$("#campoReunionDb").hidden && state.reunionId != null;
+  }
+
+  $("#fReunionDb").addEventListener("change", (e) => {
+    if (e.target.value) { cargarReunion(Number(e.target.value)); return; }
+    archivarJornada();
+    const manual = leerJornadas().manual;
+    const base = validarEstado({ ...state, ...(manual || {}), reunionId: null, hipodromo: "", modoManual: true });
+    if (!manual) base.carreras.forEach((c) => { c.inscritos = []; c.ganadorOficial = null; });
+    state = base;
+    renderTodo(); guardar();
+  });
+  $("#btnRecargarDb").addEventListener("click", () => {
+    if (state.reunionId == null) { toast("Elige primero una fecha de la lista"); return; }
+    if (!confirm("¿Volver a cargar la reunión desde la base de datos?\nSe pierden los tiempos, ganadores y textos editados a mano en esta fecha.")) return;
+    cargarReunion(state.reunionId, { limpia: true });
+  });
+
   // ---------- Guardar / abrir JSON ----------
   function descargarBlob(blob, nombre) {
     const a = document.createElement("a");
@@ -556,7 +875,9 @@
     e.target.value = "";
     if (!file) return;
     try {
+      archivarJornada();
       state = validarEstado(JSON.parse(await file.text()));
+      $("#fReunionDb").value = state.reunionId == null ? "" : String(state.reunionId);
       renderTodo(); guardar();
       window.dispatchEvent(new Event("estado-cargado"));
       toast("Jornada cargada");
@@ -572,7 +893,9 @@
     await document.fonts.ready;
     await Promise.all($$("img", node).map((img) =>
       img.complete ? null : new Promise((r) => { img.addEventListener("load", r, { once: true }); img.addEventListener("error", r, { once: true }); })));
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    // Dos cuadros para que se pinte el último cambio. Con la pestaña en segundo plano el navegador
+    // pausa requestAnimationFrame, así que el temporizador evita que un paquete largo se quede detenido.
+    await new Promise((r) => { requestAnimationFrame(() => requestAnimationFrame(r)); setTimeout(r, 150); });
   }
 
   let fontCSS = null;
@@ -592,7 +915,7 @@
   }
 
   const nombrePNG = (c, sufijo = vista === "ganador" ? "_ganador" : "") =>
-    `${baseNombre()}_C${String(nf(c.numero)).padStart(2, "0")}${sufijo}.png`;
+    `${baseNombre()}_${codigoCarrera(c)}${sufijo}.png`;
 
   async function conBoton(btn, fn) {
     const txt = btn.textContent;
@@ -638,6 +961,110 @@
     toast(`${lista.length} imágenes exportadas`);
   }));
 
+  // ---------- Paquete ZIP ----------
+  // Por carrera: imagen sin tiempos, una por cada parcial (los tiempos se van sumando), el ganador
+  // y el cintillo en MP4 y GIF. Cada archivo lleva la carrera y su Nº anual: C09_A450_02_800m.png.
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const limpiarNombre = (s) => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  const codigoCarrera = (c) => `C${pad2(nf(c.numero) || "x")}${nf(c.anual) ? "_A" + c.anual : ""}`;
+
+  // Un banner de otra pestaña está oculto (display: none) y no se puede medir ni capturar:
+  // se muestra fuera de pantalla mientras dura la captura.
+  async function conBannerVisible(node, fn) {
+    const prev = node.closest(".preview");
+    const oculto = prev.hidden;
+    if (oculto) {
+      prev.hidden = false;
+      Object.assign(prev.style, { position: "fixed", left: "-30000px", top: "0", width: "1000px" });
+    }
+    try { return await fn(); }
+    finally {
+      if (oculto) {
+        prev.hidden = true;
+        Object.assign(prev.style, { position: "", left: "", top: "", width: "" });
+      }
+    }
+  }
+
+  async function agregarCarrera(zip, carpeta, c, avance) {
+    const cod = codigoCarrera(c);
+    const pasos = [-1, ...c.parciales.map((p, i) => (p.t ? i : -1)).filter((i) => i >= 0)];
+    await conBannerVisible(banner, async () => {
+      for (let k = 0; k < pasos.length; k++) {
+        const hasta = pasos[k];
+        const p = c.parciales[hasta];
+        const nombre = hasta < 0
+          ? `${cod}_00_sin-tiempos.png`
+          : `${cod}_${pad2(k)}_${p.d}m${Number(p.d) === Number(c.distancia) ? "-final" : ""}.png`;
+        avance(`${cod} · ${hasta < 0 ? "sin tiempos" : `${p.d} m`}`);
+        renderBanner({ ...c, parciales: c.parciales.map((x, i) => (i <= hasta ? x : { ...x, t: "" })) });
+        zip.file(carpeta + nombre, await capturar(banner));
+      }
+    });
+    if (!(c.ganador.caballo || "").trim()) return false;
+    avance(`${cod} · ganador`);
+    await conBannerVisible(bannerGanador, async () => {
+      renderGanador(c);
+      zip.file(`${carpeta}${cod}_ganador_${limpiarNombre(c.ganador.caballo)}.png`, await capturar(bannerGanador));
+    });
+    return true;
+  }
+
+  async function agregarCintillo(zip, carpeta, avance) {
+    const cin = window.Cintillo;
+    cin.recordarNarrador(cin.narrador);
+    const { blob, ext } = await cin.generarVideo((t) => avance(`Cintillo · ${t}`));
+    zip.file(carpeta + cin.nombreArchivo(ext), blob);
+    zip.file(carpeta + cin.nombreArchivo("gif"), await cin.generarGif((t) => avance(`Cintillo · ${t}`)));
+  }
+
+  async function generarPaquete(alcance) {
+    if (!window.JSZip) throw new Error("No se cargó JSZip (¿sin internet?)");
+    const jornada = alcance === "jornada";
+    const carreras = jornada ? state.carreras : [actual()];
+    let conCintillo = !!window.Cintillo;
+    if (conCintillo && !window.Cintillo.narrador) {
+      if (!confirm("No hay narrador elegido en la pestaña Cintillo.\n¿Generar el paquete sin el cintillo?")) return;
+      conCintillo = false;
+    }
+    const btn = $("#btnPaquete");
+    const avance = (t) => (btn.textContent = `${t.replace(/…$/, "")}…`);
+    const raiz = jornada ? `${baseNombre()}/` : `${baseNombre()}_${codigoCarrera(actual())}/`;
+    const zip = new JSZip();
+    const sinGanador = [];
+    try {
+      for (const [i, c] of carreras.entries()) {
+        const carpeta = jornada ? `${raiz}${codigoCarrera(c)}/` : raiz;
+        const conGanador = await agregarCarrera(zip, carpeta, c, (t) => avance(jornada ? `${i + 1}/${carreras.length} · ${t}` : t));
+        if (!conGanador) sinGanador.push(nf(c.numero));
+      }
+    } finally {
+      renderVista();
+    }
+    if (conCintillo) await agregarCintillo(zip, jornada ? `${raiz}Cintillo/` : raiz, avance);
+    // PNG, MP4 y GIF ya vienen comprimidos: se guardan tal cual y el ZIP sale al instante.
+    const blob = await zip.generateAsync({ type: "blob", compression: "STORE" }, (m) => avance(`Armando ZIP ${Math.round(m.percent)}%`));
+    descargarBlob(blob, `${raiz.slice(0, -1)}.zip`);
+    const n = Object.values(zip.files).filter((f) => !f.dir).length;
+    const aviso = sinGanador.length ? ` · sin ganador: C${sinGanador.join(", C")}` : "";
+    toast(`Paquete listo: ${n} archivos${conCintillo ? "" : " (sin cintillo)"}${aviso}`, !!sinGanador.length);
+  }
+
+  const menuPaquete = $("#menuPaquetePop");
+  function abrirMenuPaquete(abrir) {
+    menuPaquete.hidden = !abrir;
+    $("#btnPaquete").setAttribute("aria-expanded", String(abrir));
+    if (abrir) $("#paqueteCarreraTxt").textContent = `Esta carrera (Carrera ${nf(actual().numero) || "?"})`;
+  }
+  $("#btnPaquete").addEventListener("click", (e) => { e.stopPropagation(); abrirMenuPaquete(menuPaquete.hidden); });
+  document.addEventListener("click", (e) => { if (!e.target.closest("#menuPaquete")) abrirMenuPaquete(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") abrirMenuPaquete(false); });
+  $$("#menuPaquetePop [data-alcance]").forEach((b) => b.addEventListener("click", () => {
+    abrirMenuPaquete(false);
+    conBoton($("#btnPaquete"), () => generarPaquete(b.dataset.alcance));
+  }));
+
   // ---------- Atajos ----------
   document.addEventListener("keydown", (e) => {
     if (vista === "cintillo") return;
@@ -665,12 +1092,13 @@
   // API para cintillo.js
   window.BannerApp = {
     get state() { return state; },
-    guardar, toast, descargarBlob, conBoton, baseNombre,
+    guardar, toast, descargarBlob, conBoton, baseNombre, pedir, apiLista,
     get vista() { return vista; },
   };
 
   // ---------- Inicio ----------
   aplicarAssets();
   irA(location.hash.slice(1));
+  iniciarDb();
   document.fonts.ready.then(() => renderVista());
 })();

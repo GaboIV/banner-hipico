@@ -537,6 +537,81 @@
   }));
   cLoop.addEventListener("change", () => { cfg().loop = cLoop.value === "si"; app.guardar(); });
 
+  // ---------- Narradores guardados ----------
+  // Se guardan en el navegador y, con el servidor (npm start), también en data/narradores.json,
+  // que no se borra al limpiar el navegador y sirve en cualquier navegador de la computadora.
+  const NARRADORES_KEY = "bannerHipico.narradores";
+  const selNarrador = $("#cNarradorSel");
+  let narradores = [];
+
+  const ordenar = (lista) => [...new Set(lista.map((n) => String(n).trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "es"));
+  const mismo = (a, b) => a.localeCompare(b, "es", { sensitivity: "base" }) === 0;
+
+  function leerLocales() {
+    try { return JSON.parse(localStorage.getItem(NARRADORES_KEY)) || []; } catch (_) { return []; }
+  }
+  async function persistirNarradores() {
+    try { localStorage.setItem(NARRADORES_KEY, JSON.stringify(narradores)); } catch (_) { /* sin almacenamiento */ }
+    if (!(await app.apiLista)) return;
+    try {
+      await app.pedir("/api/narradores", {
+        method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(narradores),
+      });
+    } catch (_) { /* queda en el navegador */ }
+  }
+
+  function renderNarradores() {
+    const actualNombre = (cfg().narrador || "").trim();
+    selNarrador.innerHTML = "";
+    selNarrador.add(new Option(narradores.length ? "— Elegir narrador guardado —" : "— Aún no hay narradores guardados —", ""));
+    narradores.forEach((n) => selNarrador.add(new Option(n, n)));
+    const hit = narradores.find((n) => mismo(n, actualNombre));
+    selNarrador.value = hit || "";
+    $("#btnNarradorBorrar").disabled = !hit;
+  }
+
+  function recordarNarrador(nombre) {
+    nombre = (nombre || "").trim().replace(/\s+/g, " ");
+    if (!nombre || narradores.some((n) => mismo(n, nombre))) return;
+    narradores = ordenar([...narradores, nombre]);
+    persistirNarradores();
+    renderNarradores();
+    app.toast(`Narrador «${nombre}» guardado en la lista`);
+  }
+
+  async function cargarNarradores() {
+    narradores = ordenar(leerLocales());
+    renderNarradores();
+    if (!(await app.apiLista)) return;
+    try {
+      const delServidor = await app.pedir("/api/narradores");
+      const unidos = ordenar([...delServidor, ...narradores]);
+      const cambio = unidos.length !== delServidor.length || unidos.length !== narradores.length;
+      narradores = unidos;
+      if (cambio) persistirNarradores();
+      renderNarradores();
+    } catch (_) { /* solo navegador */ }
+  }
+
+  selNarrador.addEventListener("change", () => {
+    if (!selNarrador.value) return;
+    cfg().narrador = selNarrador.value;
+    campos.narrador.value = selNarrador.value;
+    $("#btnNarradorBorrar").disabled = false;
+    app.guardar();
+    pintar();
+  });
+  campos.narrador.addEventListener("input", renderNarradores);
+  campos.narrador.addEventListener("change", () => recordarNarrador(campos.narrador.value));
+  $("#btnNarradorBorrar").addEventListener("click", () => {
+    const n = selNarrador.value;
+    if (!n || !confirm(`¿Quitar a «${n}» de los narradores guardados?`)) return;
+    narradores = narradores.filter((x) => x !== n);
+    persistirNarradores();
+    renderNarradores();
+  });
+
   // ---------- Exportar ----------
   const nombreArchivo = (ext) => {
     const n = (cfg().narrador || "").trim().replace(/\s+/g, "-").normalize("NFD").replace(/[^\w-]/g, "");
@@ -551,6 +626,7 @@
   const respirar = () => new Promise((r) => setTimeout(r, 0));
   function avisarSiVacio() {
     if (!(cfg().narrador || "").trim()) app.toast("Ojo: el nombre del narrador está vacío", true);
+    else recordarNarrador(cfg().narrador);
   }
 
   $("#btnCinPng").addEventListener("click", () => app.conBoton($("#btnCinPng"), async () => {
@@ -573,7 +649,7 @@
     return null;
   }
 
-  async function exportarMP4(btn) {
+  async function exportarMP4(progreso) {
     const W = cfg().ancho, H = cfg().alto, fps = 30;
     const conf = await codecH264(W, H, Math.max(2_500_000, Math.round(W * H * fps * 0.3)), fps);
     if (!conf) return null;
@@ -601,7 +677,7 @@
       encoder.encode(frame, { keyFrame: i % (fps * 2) === 0 });
       frame.close();
       if (i % 10 === 0) {
-        btn.textContent = `Video ${Math.round((i / n) * 100)}%…`;
+        progreso(`Video ${Math.round((i / n) * 100)}%…`);
         while (encoder.encodeQueueSize > 8) await new Promise((r) => setTimeout(r, 5));
         await respirar();
       }
@@ -612,7 +688,7 @@
     return new Blob([muxer.target.buffer], { type: "video/mp4" });
   }
 
-  async function exportarWebM(btn) {
+  async function exportarWebM(progreso) {
     if (!window.MediaRecorder) throw new Error("Este navegador no puede generar video. Usa Chrome o Edge.");
     const W = cfg().ancho, H = cfg().alto;
     const cv = lienzo();
@@ -630,7 +706,7 @@
       const paso = () => {
         const tt = (performance.now() - t0) / 1000;
         dibujar(c2, W, H, Math.min(tt, total()), false, lista);
-        btn.textContent = `Grabando ${Math.round((tt / total()) * 100)}%…`;
+        progreso(`Grabando ${Math.round((tt / total()) * 100)}%…`);
         if (tt >= total()) return resolve();
         requestAnimationFrame(paso);
       };
@@ -641,27 +717,27 @@
     return new Blob(partes, { type: "video/webm" });
   }
 
-  $("#btnCinVideo").addEventListener("click", () => app.conBoton($("#btnCinVideo"), async () => {
-    avisarSiVacio();
+  // Video del cintillo: MP4 si el navegador puede, si no WebM en tiempo real. Devuelve { blob, ext }.
+  async function generarVideo(progreso = () => {}) {
     await recursosListos();
-    const btn = $("#btnCinVideo");
-    let blob = null;
-    if (window.VideoEncoder && window.Mp4Muxer) blob = await exportarMP4(btn);
-    if (blob) {
-      app.descargarBlob(blob, nombreArchivo("mp4"));
-      app.toast(`Video MP4 listo (${(blob.size / 1048576).toFixed(1)} MB)`);
-      return;
+    if (window.VideoEncoder && window.Mp4Muxer) {
+      const blob = await exportarMP4(progreso);
+      if (blob) return { blob, ext: "mp4" };
     }
     app.toast("MP4 no disponible en este navegador; grabando WebM en tiempo real…");
-    blob = await exportarWebM(btn);
-    app.descargarBlob(blob, nombreArchivo("webm"));
-    app.toast("Video WebM listo");
+    return { blob: await exportarWebM(progreso), ext: "webm" };
+  }
+
+  $("#btnCinVideo").addEventListener("click", () => app.conBoton($("#btnCinVideo"), async () => {
+    avisarSiVacio();
+    const btn = $("#btnCinVideo");
+    const { blob, ext } = await generarVideo((txt) => (btn.textContent = txt));
+    app.descargarBlob(blob, nombreArchivo(ext));
+    app.toast(`Video ${ext.toUpperCase()} listo (${(blob.size / 1048576).toFixed(1)} MB)`);
   }));
 
   // GIF: los tramos estáticos se guardan como un solo cuadro con espera larga.
-  $("#btnCinGif").addEventListener("click", () => app.conBoton($("#btnCinGif"), async () => {
-    avisarSiVacio();
-    const btn = $("#btnCinGif");
+  async function generarGif(progreso = () => {}) {
     let gifenc;
     try { gifenc = await import(GIFENC_URL); }
     catch (_) { throw new Error("No se pudo cargar el generador de GIF (¿sin internet?)"); }
@@ -704,25 +780,39 @@
         pendiente.delay += paso;
       }
       if (i % 10 === 0) {
-        btn.textContent = `GIF ${Math.round((i / n) * 100)}%…`;
+        progreso(`GIF ${Math.round((i / n) * 100)}%…`);
         await respirar();
       }
     }
     escribir();
     gif.finish();
-    const blob = new Blob([gif.bytes()], { type: "image/gif" });
+    return new Blob([gif.bytes()], { type: "image/gif" });
+  }
+
+  $("#btnCinGif").addEventListener("click", () => app.conBoton($("#btnCinGif"), async () => {
+    avisarSiVacio();
+    const btn = $("#btnCinGif");
+    const blob = await generarGif((txt) => (btn.textContent = txt));
     app.descargarBlob(blob, nombreArchivo("gif"));
     app.toast(`GIF listo (${(blob.size / 1048576).toFixed(1)} MB)`);
   }));
 
+  // Para el paquete ZIP de app.js.
+  window.Cintillo = {
+    generarVideo, generarGif, nombreArchivo, recordarNarrador,
+    get narrador() { return (cfg().narrador || "").trim(); },
+  };
+
   // ---------- Inicio ----------
   function alEntrar() {
     renderForm();
+    renderNarradores();
     recursosListos().then(pintar);
     pintar();
     if (playing) arrancar();
   }
   window.addEventListener("vista", (e) => { if (e.detail === "cintillo") alEntrar(); });
   window.addEventListener("estado-cargado", () => { if (app.vista === "cintillo") alEntrar(); });
+  cargarNarradores();
   if (app.vista === "cintillo") alEntrar();
 })();

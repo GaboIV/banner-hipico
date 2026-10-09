@@ -1,0 +1,14 @@
+{
+  "name": "banner-hipico",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Editor de banners de Tricolor Hípico conectado a la base de datos de la revista",
+  "scripts": {
+    "start": "node server.mjs",
+    "start:prod": "node server.mjs --prod"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}
